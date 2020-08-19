@@ -1,0 +1,170 @@
+<head>
+
+<link type=text/css href=/main.css rel=stylesheet />
+
+<title> STM32 Inductance Meter </title>
+
+</head>
+
+<body>
+
+	<a href=/index.html> Back to index </a> <hr>
+
+<h3> STM32 Inductance Meter </h3> <a href=https://github.com/ajeddeloh/lmeter> View source on GitHub
+</a>
+
+	<h4> Background </h4>
+
+<p>As part of another project, I needed to make my own inductors in the 100-1000uH range. I
+originally wrote a <a href=https://github.com/ajeddeloh/lrc>python script</a> to control my
+oscilloscope and function generator to measure them, but I ultimately wanted something standalone
+where I could just plug in an inductor. I had my <a
+href=https://www.st.com/en/evaluation-tools/32l476gdiscovery.html> STM32L476G-Discovery development
+board</a> left over from a class in college so I decided to use that.</p>
+
+<br><br> <img src=./finished-project.jpg> <br>
+
+	<h4> Theory </h4>
+
+<p>The project is pretty simple in theory: apply a sine wave to a resistor and the inductor under
+test in series and measure the total voltage across both and the voltage across just the
+inductor.</p>
+
+<img src=simplified-circuit.png>
+
+<p>The ratio of complex voltages can then be used to determine the impedance which can be used to
+determine the inductance. </p>
+
+<br> <img src=equations.png>
+
+<p>In order to accurately measure the amplitude of the sine waves, as well as to reduce noise, I use
+a discrete Fourier transform at the frequency of the applied sine wave. This has a few advantages:
+</p>
+
+<ul>
+
+<li> The DFT returns complex numbers to represent the amplitude and phase. The above equation uses
+complex numbers for the voltages already. </li>
+
+<li> Capturing more cycles increases precision. By varying the capture length I can tune precision
+vs speed. </li>
+
+<li> It rejects noise at all other frequencies, excepts those that might be aliased to the frequency
+being measured. </li>
+
+</ul>
+
+Normally there's a gotchas with using DFTs, but I carefully avoid them: 
+
+<ul>
+
+<li> The DFT assumes the data is cyclic. If it is not, it will contain discontinuities between the
+last element and the first element, which will appear as high frequency harmonics. Normally this is
+solved via multiplying the data with a windowing function, but in this case I can simply ensure the
+data is cyclic by capturing an integer number of waves. Since the ADC and DAC use the same clock I
+also don't need to worry about clock skew between them either. </li>
+
+<li> The runtime complexity of a DFT is O(n log n) and would need to operate on an array of already
+collected data. However, since I only care about one frequency, I only need to compute it at one
+frequency. Computing the DFT at a single frequency is just O(n), uses O(1) space and can be computed
+as I receive data (assuming each sample can be processed before the next sample arrives). </li>
+
+</ul>
+
+<p>Aliasing is another potential problem, which I have ignored entirely. Frequencies above 666kHz
+will alias. In the future I may add antialiasing filters. See the <a
+href=#improvements>improvements</a> section below. In practice however, aliasing does not appear to
+be a significant source of error.</p>
+
+<h4> Implementation </h4>
+
+<p>The implementation is pretty straightforward: generate a sine wave at a bunch of different
+frequencies, measure the impedance at each frequency, then use linear regression to find the slope,
+which will be the inductance.</p>
+
+<p>There are two tricky parts:</p>
+
+<h5> Generating sines </h5>
+
+<p> The sine wave generation is <b>mostly</b> straightforward. The DAC is set up to use DMA to load
+each sample from a sine lookup table. A timer triggers each load. </p>
+
+<p> The tricky part is changing frequencies. For the frequency to change, the DMA buffer length must
+be changed to represent the new period and the data in the buffer must be changed. However, the
+STM32L476G does not support changing the DMA buffer length while the DMA channel is active. This
+mean it needs to be changed between samples. The new data also needs to be copied in to the buffer
+but only after the DMA has already the data being overwritten. </p>
+
+<p>Luckily, there are two status flags in the DMA interrupt status register that indicate when the
+transfer is half done and completely done. After it is half complete we can copy the first half of
+the new data in. After it is 100% complete we can change the length (between the last sample and the
+first sample) and copy the second half.</p>
+
+<p>Normally interrupts would be great for this. However, there is at least 12 cycles of latency
+between when the flag is set and when the interrupt is executed. Since changing the DMA buffer
+length needs to be done in under 15 cycles, doing it in the interrupt is out of the question.</p>
+
+<p>Instead of using interrupts, I poll the status bits. I use inline assembly so I can load all of
+the constants I need into registers before starting the polling loop, ensuring it switches the
+length as quickly as possible once the bit gets flipped. See <code>src/dac.c</code> for the
+details.</p>
+
+<pre><code>
+__asm volatile(
+        // wait for the DAC to read the last element
+        "loop%=:\n" // wait for the TC flag
+        "       ldr     r0, [%[rTCIF]]\n"
+        "       cmp     r0, #1\n"
+        "       bne     loop%=\n"
+        // turn off DMA, Use %[DMAen] as a 0 since only the LSB matter when bit-banding
+        // and since all BB'd addressed are word aligned it's always 0;
+        "       str     %[rDMAen], [%[rDMAen]]\n"
+        "       str     %[rLen], [%[rDMAlen]]\n"
+        "       str     r0, [%[rDMAen]]\n"
+                : // no outputs, so the volatile keyword is redundant
+                : [rTCIF]"l"(&BB(DMA2->ISR)[DMA_ISR_TCIF5_Pos]), // tcif5 flag bit
+                        [rDMAen]"l"(&BB(DMA2_Channel5->CCR)[DMA_CCR_EN_Pos]), // dma en bit
+                        [rLen] "l" (sine->len), // new len to load
+                        [rDMAlen] "l" (&DMA2_Channel5->CNDTR) // address to but new len in
+                : "cc", "r0"
+        );
+
+</code></pre>
+
+<h5> Calculating the DFT </h5>
+
+<p>As mentioned before, since we only need to calculate the DFT at one frequency we can calculate it
+on the fly, as long as we do it fast enough. Static variables keep track of the real and imaginary
+sums for total and inductor. When the ADC starts, it zeros them and the IRQ handler computes the sum
+every waveform, adding to them. I originally had <i>terrible</i> performance until I realized that
+since the sums were marked <code>volatile</code> (because the IRQ handler modifies them), the code
+in the IRQ handler itself was writing the sum back to memory every time it modified them instead of
+keeping them in registers. This is especially painful since the sums are <code>int64_t</code> and
+need to load or store both registers. 
+
+<h4> Electronics </h4>
+
+<p> <img src=full-schematic.png> </p>
+
+<p>The electronics are pretty simple. It's just an op amp buffering the DAC output and the ADC
+inputs. One of the op amps is used as a virtual ground. I used an <code>LM324</code> op amp because
+it's what I had on hand, but it's really a poor choice given how prone it is to crossover
+distortion. I had to add resistors to (real, non-virtual) ground to prevent it from badly
+distorting. It also has an <i>abymsal</i> slew rate of 0.5V/us which can slew limit it even at low
+(100kHz) frequencies. Finally, its output can't get closer than ~0.5V from ground when sourcing a
+few milliamps of current. A much better op amp choice would be a <code>MCP6294</code>.
+
+<h4> Results </h4>
+
+I'm pretty pleased with the results. Readings are consistent both with itself and with the original
+oscilloscope and function generator based version. I can get ~2uH of resolution when measuring a
+1080uH inductor, which is pretty good.
+
+<h4> Improvements </h4>
+
+<p>The biggest improvement would be adding gain to op amp measuring the voltage over the inductor.
+Currently the voltage is quite low, even with a large (1080uH) inductor and most of the ADC
+resolution is wasted. A digipot could be used to set the gain, though increasing the gain would
+certainly call for a better op amp. </p> 
+
+<p>I'd also like to run the ADC at a faster sample rate, which would require the 
