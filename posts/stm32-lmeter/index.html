@@ -37,14 +37,20 @@ determine the inductance. </p>
 
 <br> <img src=equations.png>
 
+<p> Since impedance is equal to 2*pi*f*L, I can capture the impedance at multiple frequencies and
+use their slope to find the inductance. This has the advantage of being more resilient to other
+signals that may be present at the frequency of interest (such as aliased self-resonant
+oscillations). In theory it should be possible to find the ESR of the inductor as well, but the
+slight deviation due to parasitic capacitance makes this impractical, (see results, below)</p>
+
 <p>In order to accurately measure the amplitude of the sine waves, as well as to reduce noise, I use
 a discrete Fourier transform at the frequency of the applied sine wave. This has a few advantages:
 </p>
 
 <ul>
 
-<li> The DFT returns complex numbers to represent the amplitude and phase. The above equation uses
-complex numbers for the voltages already. </li>
+<li> The DFT uses complex numbers to represent the amplitude and phase. The above equation uses
+complex numbers for the voltages already, so no conversion is necessary. </li>
 
 <li> Capturing more cycles increases precision. By varying the capture length I can tune precision
 vs speed. </li>
@@ -54,15 +60,15 @@ being measured. </li>
 
 </ul>
 
-Normally there's a gotchas with using DFTs, but I carefully avoid them: 
+Normally there's a couple gotchas with using DFTs, but I carefully avoid them: 
 
 <ul>
 
 <li> The DFT assumes the data is cyclic. If it is not, it will contain discontinuities between the
-last element and the first element, which will appear as high frequency harmonics. Normally this is
-solved via multiplying the data with a windowing function, but in this case I can simply ensure the
-data is cyclic by capturing an integer number of waves. Since the ADC and DAC use the same clock I
-also don't need to worry about clock skew between them either. </li>
+last element and the first element, which will appear as high frequencies. Normally this is solved
+by multiplying the data with a windowing function, but in this case I can simply ensure the data is
+cyclic by capturing an integer number of waves. Since the ADC and DAC use the same clock I also
+don't need to worry about clock skew between them. </li>
 
 <li> The runtime complexity of a DFT is O(n log n) and would need to operate on an array of already
 collected data. However, since I only care about one frequency, I only need to compute it at one
@@ -156,9 +162,14 @@ few milliamps of current. A much better op amp choice would be a <code>MCP6294</
 
 <h4> Results </h4>
 
-I'm pretty pleased with the results. Readings are consistent both with itself and with the original
-oscilloscope and function generator based version. I can get ~2uH of resolution when measuring a
-1080uH inductor, which is pretty good.
+<p>I'm pretty pleased with the results. Readings are consistent both with itself and with the
+original oscilloscope and function generator based version. I can get ~2uH of resolution when
+measuring a 1080uH inductor, which is pretty good.</p>
+
+<p>I was hoping to also calculate the ESR of the inductor by using the y intercept of the frequency
+vs impedance graph. Unfortunately the parasitic capacitance causes a slight bend upward in the graph
+which while not effecting the slope in a major way, does push the y intercept negative, which
+indicates the measurement is nonsensical</p>
 
 <h4> Improvements </h4>
 
@@ -167,4 +178,18 @@ Currently the voltage is quite low, even with a large (1080uH) inductor and most
 resolution is wasted. A digipot could be used to set the gain, though increasing the gain would
 certainly call for a better op amp. </p> 
 
-<p>I'd also like to run the ADC at a faster sample rate, which would require the 
+<p>I'd also like to run the ADC at a faster sample rate, which would require the DFT calculation to
+be faster. The Cortex-M4 has instructions as part of the DSP extension that would work well:
+<code>SMLAL{TT,TB,BT,BB}</code>. These would allow me to load both sine and cosine values packed as
+two 16 bit halfwords in a word and directly multiply them with the packed halfwords from the ADC.
+Unfortunately, GCC 10.x has a regression that prevents them from being generated. I've bisected GCC
+and found it was introduced when they reworked the handling of 64 bit integer operations.
+
+<p>Adding antialiasing filters would reduce the chance of unwanted signals aliasing to a frequency
+being measured. Since I'm sampling at a much higher frequency than the signal, a simple RC filter
+would probably be more than adequate.</p>
+
+<p>Finally, I'd like to run the DAC faster to eliminate the "stairstep" effect. This would require
+reworking how switching sine waves work since I'm already cutting it close to the 15 cycle limit.
+One possibility would be to use the DMA "halfway complete" interrupt to start a timer that goes off
+and starts executing its ISR exactly after the last sample is loaded.</p>
