@@ -1,88 +1,117 @@
+<!DOCTYPE html>
+<html>
 <head>
-
-<link type=text/css href=/main.css rel=stylesheet />
-
-<title> STM32 Inductance Meter </title>
-
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> STM32 Inductance Meter </title>
 </head>
 
 <body>
-
 	<a href=/index.html> Back to index </a> <hr>
 
-<h3> STM32 Inductance Meter </h3> <a href=https://github.com/ajeddeloh/lmeter> View source on GitHub
-</a>
+	<h2> STM32 Inductance Meter </h2>
+	<a href=https://github.com/ajeddeloh/lmeter> View source on GitHub</a>
 
-	<h4> Background </h4>
+	<h3> Background </h3>
 
-<p>As part of another project, I needed to make my own inductors in the 100-1000uH range. I
-originally wrote a <a href=https://github.com/ajeddeloh/lrc>python script</a> to control my
-oscilloscope and function generator to measure them, but I ultimately wanted something standalone
-where I could just plug in an inductor. I had my <a
-href=https://www.st.com/en/evaluation-tools/32l476gdiscovery.html> STM32L476G-Discovery development
-board</a> left over from a class in college so I decided to use that.</p>
+<p>As part of another project, I needed to make my own inductors in the 100-1000uH range. I wrote a
+<a href=https://github.com/ajeddeloh/lrc>python script</a> to control my oscilloscope and function
+generator to measure them, but I ultimately wanted something standalone where I could just plug in
+an inductor. I had my <a href=https://www.st.com/en/evaluation-tools/32l476gdiscovery.html>
+STM32L476G-Discovery development board</a> left over from a class in college so I decided to use
+that.</p>
 
-<br><br> <img src=./finished-project.jpg> <br>
+<img src=./finished-project.jpg>
 
-	<h4> Theory </h4>
+	<h3> Theory </h3>
 
 <p>The project is pretty simple in theory: apply a sine wave to a resistor and the inductor under
-test in series and measure the total voltage across both and the voltage across just the
+test in series then measure the total voltage across both and the voltage across just the
 inductor.</p>
 
 <img src=simplified-circuit.png>
 
-<p>The ratio of complex voltages can then be used to determine the impedance which can be used to
-determine the inductance. </p>
+<p> The impedance of the inductor can then be determined by the ratio of voltages. </p>
 
-<br> <img src=equations.png>
+<img src=equations.png>
 
-<p> Since impedance is equal to 2*pi*f*L, I can capture the impedance at multiple frequencies and
-use their slope to find the inductance. This has the advantage of being more resilient to other
-signals that may be present at the frequency of interest (such as aliased self-resonant
-oscillations). In theory it should be possible to find the ESR of the inductor as well, but the
-slight deviation due to parasitic capacitance makes this impractical, (see results, below)</p>
-
-<p>In order to accurately measure the amplitude of the sine waves, as well as to reduce noise, I use
-a discrete Fourier transform at the frequency of the applied sine wave. This has a few advantages:
-</p>
+<p>The impedance of an ideal inductor is proportional to the inductance and frequency. Plotting the
+angular frequency vs impedance gives the inductance as its slope. By measuring impedance at multiple
+frequencies and using the slope, I minimize the impact of any stray signals that may be present at
+only one frequency. I can think of three possible sources of interference:
 
 <ul>
 
-<li> The DFT uses complex numbers to represent the amplitude and phase. The above equation uses
-complex numbers for the voltages already, so no conversion is necessary. </li>
+<li>Radio frequency interference picked up by long leads acting as antennas;</li>
+
+<li>The inductors own self resonance; and</li>
+
+<li> High frequency components from the DAC, given that it has a slight "stairstep" in its output,
+even running at 5.333Msps.</li>
+
+</ul>
+
+Since I did not include an antialiasing filter, any of these could be aliased to the same frequency
+as the signal and affect the measurement.</p>
+
+<p>In theory I should be able to determine the ESR (equivalent series resistance) of the inductor
+from the y intercept of the graph, however this proved impractical. The parasitic capacitance of the
+inductor causes the graph to bend slightly upward which artificially increases the slope and pushes
+the y intercept below 0. This does not have a significant impact on the inductance measurement, but
+does render the y intercept useless.</p>
+
+<p>In order to accurately measure the amplitude of the sine waves, as well as to reduce noise, I use
+a discrete Fourier transform at the frequency of the applied sine wave.</p>
+
+<img src=dft.svg><div style="text-align:right;"><i>Image from <a
+href=https://en.wikipedia.org/wiki/Discrete_Fourier_transform>Wikipedia</a></div></i>
+
+<p>Using the DFT has a few advantages:
+
+<ul>
+
+<li> The DFT uses complex numbers to represent the amplitude and phase. The equation for impedance
+also uses complex numbers for the voltages, so no conversion is necessary. </li>
 
 <li> Capturing more cycles increases precision. By varying the capture length I can tune precision
 vs speed. </li>
 
-<li> It rejects noise at all other frequencies, excepts those that might be aliased to the frequency
-being measured. </li>
+<li> It rejects noise at all other frequencies, except those that might be aliased to the same
+frequency as the applied sine wave.</li>
 
-</ul>
+</ul></p>
 
 Normally there's a couple gotchas with using DFTs, but I carefully avoid them: 
 
 <ul>
 
-<li> The DFT assumes the data is cyclic. If it is not, it will contain discontinuities between the
-last element and the first element, which will appear as high frequencies. Normally this is solved
-by multiplying the data with a windowing function, but in this case I can simply ensure the data is
-cyclic by capturing an integer number of waves. Since the ADC and DAC use the same clock I also
-don't need to worry about clock skew between them. </li>
+<li>The DFT operates on a finite set data. This means the data must be windowed, which causes
+spectral leakage. However, by capturing an integer number of cycles, the leakage can be avoided.
+This diagram from the <a href=https://en.wikipedia.org/wiki/Spectral_leakage>wikipedia article on
+spectral leakage</a> below demonstrates this:
+
+<img src=spectral-leakage.png><br>
+
+Since I configure the ADC and DAC to use the same clock, I also don't need to worry about clock skew
+either.</li>
+
+<li>Even if I were not collecting an integer number of cycles, the spectral leakage's effects would
+be canceled out. Leakage impacts the amplitude and phase of both voltages the same way. Since I am
+using the ratio of the voltages, any changes due to leakage would be canceled out. </li>
 
 <li> The runtime complexity of a DFT is O(n log n) and would need to operate on an array of already
-collected data. However, since I only care about one frequency, I only need to compute it at one
+collected data. However, since I only care about one frequency, I only need to compute it at that
 frequency. Computing the DFT at a single frequency is just O(n), uses O(1) space and can be computed
-as I receive data (assuming each sample can be processed before the next sample arrives). </li>
+as I receive data. This assumes each sample can be processed before the next sample arrives. </li>
 
 </ul>
 
 <p>Aliasing is another potential problem, which I have ignored entirely. Frequencies above 666kHz
-will alias. In the future I may add antialiasing filters. See the <a
-href=#improvements>improvements</a> section below. In practice however, aliasing does not appear to
-be a significant source of error.</p>
+will alias. In the future I may add antialiasing filters. See the improvements section below. In
+practice however, aliasing does not appear to be a significant source of error.</p>
 
-<h4> Implementation </h4>
+<h3> Implementation </h3>
 
 <p>The implementation is pretty straightforward: generate a sine wave at a bunch of different
 frequencies, measure the impedance at each frequency, then use linear regression to find the slope,
@@ -90,29 +119,29 @@ which will be the inductance.</p>
 
 <p>There are two tricky parts:</p>
 
-<h5> Generating sines </h5>
+<h4> Generating sines </h4>
 
-<p> The sine wave generation is <b>mostly</b> straightforward. The DAC is set up to use DMA to load
-each sample from a sine lookup table. A timer triggers each load. </p>
+<p> The sine wave generation is <b>mostly</b> straightforward. The DAC uses DMA to load each sample
+from a sine lookup table. A timer triggers each load every 15 clock cycles (f=1.333Msps). </p>
 
-<p> The tricky part is changing frequencies. For the frequency to change, the DMA buffer length must
-be changed to represent the new period and the data in the buffer must be changed. However, the
-STM32L476G does not support changing the DMA buffer length while the DMA channel is active. This
-mean it needs to be changed between samples. The new data also needs to be copied in to the buffer
-but only after the DMA has already the data being overwritten. </p>
+<p> The tricky part is changing frequencies. To change frequency, the length of the DMA buffer must
+be changed to represent the new period and the data in the buffer must be changed to reflect that of
+the new sine wave. However, you cannot change the buffer length while the DMA channel is active. You
+must change it between samples. The new data also needs to be copied in to the buffer, but only
+after the DMA has already read the data being overwritten. </p>
 
 <p>Luckily, there are two status flags in the DMA interrupt status register that indicate when the
-transfer is half done and completely done. After it is half complete we can copy the first half of
-the new data in. After it is 100% complete we can change the length (between the last sample and the
-first sample) and copy the second half.</p>
+transfer is half done (<code>HTIFx</code>) and when it is completely done(<code>TCIFx</code>). When
+it is half complete I can copy the first half of the new data in. After it is 100% complete I can
+change the length (between the last sample and the first sample) and copy the second half.</p>
 
-<p>Normally interrupts would be great for this. However, there is at least 12 cycles of latency
-between when the flag is set and when the interrupt is executed. Since changing the DMA buffer
-length needs to be done in under 15 cycles, doing it in the interrupt is out of the question.</p>
+<p>Normally interrupts would be great for this. However, the interrupt latency is 12 cycles on a
+cortex-m4. Since changing the DMA buffer length needs to be done in under 15 cycles, doing it in the
+interrupt would only leave 3 cycles to change it.</p>
 
 <p>Instead of using interrupts, I poll the status bits. I use inline assembly so I can load all of
 the constants I need into registers before starting the polling loop, ensuring it switches the
-length as quickly as possible once the bit gets flipped. See <code>src/dac.c</code> for the
+length as quickly as possible once the bit gets flipped. See <a href=https://github.com/ajeddeloh/lmeter/blob/master/src/dac.c><code>src/dac.c</code></a> for the
 details.</p>
 
 <pre><code>
@@ -137,30 +166,31 @@ __asm volatile(
 
 </code></pre>
 
-<h5> Calculating the DFT </h5>
+<h4> Calculating the DFT </h4>
 
-<p>As mentioned before, since we only need to calculate the DFT at one frequency we can calculate it
-on the fly, as long as we do it fast enough. Static variables keep track of the real and imaginary
-sums for total and inductor. When the ADC starts, it zeros them and the IRQ handler computes the sum
-every waveform, adding to them. I originally had <i>terrible</i> performance until I realized that
-since the sums were marked <code>volatile</code> (because the IRQ handler modifies them), the code
-in the IRQ handler itself was writing the sum back to memory every time it modified them instead of
-keeping them in registers. This is especially painful since the sums are <code>int64_t</code> and
-need to load or store both registers. 
+<p>Calculating the DFT at one frequency is just the sum of products of the data and cosine (for the
+real part) or -sine (for the imaginary part). These are stored in static variables and updated by
+the ISR that fires after the ADC collects half a buffer of data. </p>
 
-<h4> Electronics </h4>
+I originally had <i>terrible</i> performance until I realized that since the sums were marked
+<code>volatile</code> (due to the ISR modifing them), the code in the IRQ handler itself was writing
+the sum back to memory every time it modified them instead of keeping them in registers. This is
+especially painful since the sums are <code>int64_t</code> and reading or writing them to memory
+needs to load or store both registers. 
+
+<h3> Electronics </h3>
 
 <p> <img src=full-schematic.png> </p>
 
-<p>The electronics are pretty simple. It's just an op amp buffering the DAC output and the ADC
-inputs. One of the op amps is used as a virtual ground. I used an <code>LM324</code> op amp because
-it's what I had on hand, but it's really a poor choice given how prone it is to crossover
-distortion. I had to add resistors to (real, non-virtual) ground to prevent it from badly
-distorting. It also has an <i>abymsal</i> slew rate of 0.5V/us which can slew limit it even at low
-(100kHz) frequencies. Finally, its output can't get closer than ~0.5V from ground when sourcing a
-few milliamps of current. A much better op amp choice would be a <code>MCP6294</code>.
+<p>The electronics are simple. Op amps buffer the DAC output and the ADC inputs. One of the op amps
+is used as a virtual ground. I used an <code>LM324</code> op amp because it's what I had on hand,
+but it's really a poor choice. It is prone to crossover distortion and has an <i>abysmal</i> slew
+rate of 0.5V/us. I added resistors from the op amp output to ground to fix the crossover distortion,
+but there's nothing to be done about the slew rate. Finally, its output can't get closer than ~0.5V
+from ground when sourcing a few milliamps of current. A much better op amp choice would be a
+<code>MCP6294</code>.
 
-<h4> Results </h4>
+<h3> Results </h3>
 
 <p>I'm pretty pleased with the results. Readings are consistent both with itself and with the
 original oscilloscope and function generator based version. I can get ~2uH of resolution when
@@ -169,11 +199,11 @@ measuring a 1080uH inductor, which is pretty good.</p>
 <p>I was hoping to also calculate the ESR of the inductor by using the y intercept of the frequency
 vs impedance graph. Unfortunately the parasitic capacitance causes a slight bend upward in the graph
 which while not effecting the slope in a major way, does push the y intercept negative, which
-indicates the measurement is nonsensical</p>
+indicates the measurement is nonsensical.</p>
 
-<h4> Improvements </h4>
+<h3> Improvements </h3>
 
-<p>The biggest improvement would be adding gain to op amp measuring the voltage over the inductor.
+<p>The biggest improvement would be adding gain to op amp measuring the voltage across the inductor.
 Currently the voltage is quite low, even with a large (1080uH) inductor and most of the ADC
 resolution is wasted. A digipot could be used to set the gain, though increasing the gain would
 certainly call for a better op amp. </p> 
@@ -183,13 +213,14 @@ be faster. The Cortex-M4 has instructions as part of the DSP extension that woul
 <code>SMLAL{TT,TB,BT,BB}</code>. These would allow me to load both sine and cosine values packed as
 two 16 bit halfwords in a word and directly multiply them with the packed halfwords from the ADC.
 Unfortunately, GCC 10.x has a regression that prevents them from being generated. I've bisected GCC
-and found it was introduced when they reworked the handling of 64 bit integer operations.
+and found the commit it was introduced in. I'm currently trying to see if I can fix it and submit a
+patch upstream.
 
 <p>Adding antialiasing filters would reduce the chance of unwanted signals aliasing to a frequency
 being measured. Since I'm sampling at a much higher frequency than the signal, a simple RC filter
-would probably be more than adequate.</p>
+would probably be more than adequate. Additionally, adding a low pass filter to the DAC output could
+eliminate the stairstep effect.</p>
 
-<p>Finally, I'd like to run the DAC faster to eliminate the "stairstep" effect. This would require
-reworking how switching sine waves work since I'm already cutting it close to the 15 cycle limit.
-One possibility would be to use the DMA "halfway complete" interrupt to start a timer that goes off
-and starts executing its ISR exactly after the last sample is loaded.</p>
+<hr> <a href=/index.html> Back to index </a> 
+
+</body> </html>
