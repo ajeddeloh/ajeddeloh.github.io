@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> Fixing a Pioneer SX525 Stereo Receiver </title>
+</head>
+
+<body>
+	<a href=/index.html> Back to index </a> <hr>
+
+	<h2> Fixing a Pioneer SX525 Stereo Receiver </h2>
+
+	<h3> Background </h3>
+
+<p>I have an old Pioneer SX525 a friend gave me when he was moving cross country. I restored a lot
+of it back when I got it, replacing old failing capacitors and swapping out some of the failure
+prone transistors. Recently the right channel started becoming very noisy, so I fixed it. This is a
+brief log of that process.</p>
+
+<img src=./receiver.jpg>
+
+	<h3> Diagnosis </h3>
+
+<p>The noise only occured when using the phono and radio inputs. It did not occur when using the aux
+input. The phono and aux inputs use the head amp while the aux input bypasses it. Therefore, I
+assumed that's where the problem was. Furthermore, since it only happened on one channel, I had
+another channel to compare against.</p>
+
+</p>I started by just measuring the noise on phono mode with nothing connected to the receiver and
+the volume at ~50%. You can see below that the right channel has significantly more noise than the
+left.<p>
+
+<img src=./out-comparison.png>
+
+<p>Next I confirmed the problem was in fact in the head amp. I measured the left and right channel
+outputs of the head amp and confirmed the right channel was still significantly noisier.</p>
+
+<img src=./head-comparison.png>
+
+<p>Thankfully the head amp is pretty simple. Each channel uses just two transistors and switches the
+feedback network to switch between FM de-emphasis (pins 2 and 7) and RIAA equalization (pins 3 and
+6). I had previously replaced all the capacitors in this section, so I suspected the transistors
+were to blame. I thought I had also swapped the transistors out previously, but upon opening it up I
+discovered I forgot the right channel.</p>
+
+<img src=./head-amp-schematic.png>
+<div style="text-align: right"><i>Head amp schematic</i></div>
+
+<h3> Repair </h3>
+
+<img src=./head-amp-pcb.jpg>
+<div style="text-align: right"><i>Head amp PCB before replacing the transistors.</i></div>
+
+<p>I swapped the old transistors out with some <code>2n5088</code> transistors. I chose the
+<code>2n5088</code>s for their low noise and high gain. They're popular in preamps for these
+reasons. <code>2n5089</code>s would have been even better, but they have a <code>V<sub>CE
+MAX</sub></code> of just 25V, which is lower than the circuit's supply voltage. </p>
+
+<img src=half-replaced.jpg>
+<div style="text-align: right"><i> PCB with one of two transistors replaced</i></div>
+
+<p> After replacing them I tested the output again on the oscilloscope and confirmed the noise was
+gone. After hooking everything back up it works great.</p>
+
+<img src=fixed.png>
+<div style="text-align: right"><i> Right channel before and after repair</i></div>
+
+<img src=culprits.jpg>
+<div style="text-align: right"><i> The culprits</i></div>
+
+<hr> <a href=/index.html> Back to index </a> 
+
+</body> </html>
