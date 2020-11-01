@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> Measuring Camera Shutter Speeds </title>
+</head>
+
+<body>
+	<a href=/index.html> Back to index </a> <hr>
+
+	<h2> Measuring Camera Shutter Speeds </h2>
+
+	<h3> Background </h3>
+
+<p> A friend of mine bought a lot of ten Pentax K1000 cameras in an auction in Canada for $10 and
+was kind enough to send me one. It mostly worked but the slow shutter speeds were a bit sticky. I
+figured the old lubrication was probably on it's last legs so I opened it up and sprayed some
+tri-flow on the mechanisms. This was probably a mistake. </p>
+
+<img src=./camera.jpg> 
+<div style="text-align: right"><i>My Pentax K1000</i></div>
+
+<p> Not only did I manage to get tri-flow on the shutter curtain, but the fast shutter speeds are
+now wrong. Judging by my most recent almost completely blank roll of film, I'd say they're too fast.
+If I was going to fix it, I would need a way of measuring it, so that's what this post is about.
+</p>
+
+	<h3> A Primer on the K1000 Shutter </h3>
+
+<p> The K1000 shutter has two curtains: the opening curtain and closing curtain. Both move
+horizontally. The opening one starts out covering the frame and moves out of the way to expose the
+film. Conversely, the closing one starts not covering the frame and moves to cover it. At speeds at
+or below 1/60th of a second the opening curtain should completely uncover the frame before the
+closing curtain starts to cover it. This is important when using a flash; if the entire frame were
+not exposed when the flash went off then only a portion of the frame would receive the light from
+the flash. At speeds faster than 1/60th of a second the two curtains form a slit which moves across
+the frame. </p>
+
+<img src=./flash-sync.jpg>
+<div style="text-align: right"><i>What happens if you use a flash at speeds faster than 1/60s</i></div>
+
+	<h3> The Measurement Rig </h3>
+
+<p>The measurement rig has two jobs: measuring the exposure time and measuring the exposure
+evenness. The first is pretty straightforward; just measure the exposture time a given spot. The
+latter needs to measure the exposure time at multiple locations on the shutter to ensure that each
+part of the frame receives the same amount of light. </p>
+
+<p> To measure the light at a given point I use a reverse biased LED hooked up to a <a
+href=https://en.wikipedia.org/wiki/Transimpedance_amplifier>transimpedance amplifier</a>. Since an
+LED's reverse leakage current increases when light hits it, they can be used as a light detector.
+The tranimpedance amplifier then converts and buffers the tiny current (~200nA in bright light) to a
+voltage. Each output is then hooked up to a channel on my oscilloscope to measure the timing. </p>
+
+<p> Granted, using actual phototransistors would have been easier and worked better, but I had the
+LEDs on hand, so that's what I used. The MCP6294 is overkill and I'm fairly certain any old op amp
+will work just fine. </p>
+
+<img src=./schematic.png>
+<div style="text-align: right"><i>Schematic of the circuit</i></div>
+
+<p>To use the circuit I take the lens of the camera and shine a desk light at the shutter. I
+position the LEDs so they are almost touching the shutter, set the scope to single shot mode and
+fire the shutter. </p>
+
+<img src=./setup.jpg>
+
+<h3> Results </h3>
+
+<p>The setup works really well, unfortunately the camera does not. Not only are all of the timings
+too fast, but the closing curtain is moving faster than the opening curtain, which causes uneven
+exposure. </p>
+
+<img src=./result60.png>
+<div style="text-align: right"><i>Scope capture at 1/60s</i></div>
+
+<p>The above scope traces show the shutter at 1/60s. The timing isn't bad but it's really uneven.
+Using the scope's measurement abilities I can measure the pulse widths to determine the shutter
+speed. Note that channel 2 is not measuring correctly, probably because the change in voltage is not
+great enough. Looking at the pulse widths you can see that one side of the frame gets significantly
+more light (22.0ms) than the other (17.2ms).</p>
+
+<img src=./result125.png>
+<div style="text-align: right"><i>Scope capture at 1/125s</i></div>
+
+<p>At 1/125s the problem is worse. The timing is way to fast (5.5ms instead of 8ms) and the exposure
+is more uneven. One side barely gets any exposure at all at 0.7ms. This unevenness is from the
+closing curtain moving faster than the opening curtain. </p>
+
+<h3> Next Steps </h3>
+
+<p>Next I need to buy the proper oil to relubricate the camera and give it a proper CLA (clean,
+lubricate and adjust). Luckily I found a <a
+href=http://www.pentax-manuals.com/manuals/service/servicemanuals.htm>copy of the repair guide</a>
+which should make the process a lot easier. </p>
+
+<hr> <a href=/index.html> Back to index </a> 
+
+</body> </html>
