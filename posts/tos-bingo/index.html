@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> Star Trek TOS Bingo </title>
+<style type="text/css">
+td{
+	border: solid;
+	width: 20%;
+	height: 20%;
+}
+table{
+	text-align: center;
+	width: 100%;
+	height: 800px;
+}
+</style>
+</head>
+
+<body>
+	<a href=/index.html> Back to index </a> <hr>
+
+	<h2> Star Trek TOS Bingo </h2>
+
+<p> Click on a table cell to toggle it. Reload the page to randomize the board. Javascript is needed
+for toggling/randomizing, but it'll display a static board without it. Use landscape mode on mobile
+to get everything to fit.</p>
+<center> <b>B I N G O</b> </center>
+<table>
+	<tr>
+		<td id=0>Figure from history</td>
+		<td id=1>Spock hides his ears</td>
+		<td id=2>Reference to communism</td>
+		<td id=3>Kirk fighting shirtless</td>
+		<td id=4>Vulcan nerve pinch</td>
+	</tr>
+	<tr>
+		<td id=5>Scotty says something is impossible</td>
+		<td id=6>Transporter malfunction</td>
+		<td id=7>Energy being</td>
+		<td id=8>Gas cloud being</td>
+		<td id=9>Time travel</td>
+	</tr>
+	<tr>
+		<td id=10>Kirk mentions how many people are aboard the Enterprise</td>
+		<td id=11>McCoy gets fed up with Spock's logic</td>
+		<td id=12>Kirk hits on someone</td>
+		<td id=13>Chekov brags about Russia</td>
+		<td id=14>"He's dead, Jim"</td>
+	</tr>
+	<tr>
+		<td id=15>"I'm a doctor, not a ____"</td>
+		<td id=16>Reference to mutually assured destruction</td>
+		<td id=17>Android(s)</td>
+		<td id=18>Two handed punch</td>
+		<td id=19>Vulcan mind meld</td>
+	</tr>
+	<tr>
+		<td id=20>Heating rocks with phasers for warmth</td>
+		<td id=21>Biblical reference</td>
+		<td id=22>Background that's obviously a painting</td>
+		<td id=23>"Life, but not as we know it"</td>
+		<td id=24>Communicators don't work</td>
+	</tr>
+</table>
+
+<hr> <a href=/index.html> Back to index </a> 
+
+	<script>
+// taken from https://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array
+function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+content = ["\"I'm givin' her all she's got!\"", "Standard orbit"];
+tds = document.getElementsByTagName('td');
+for (let td of tds) {
+	content.push(td.textContent);
+}
+shuffle(content);
+
+i = 0;
+for (let td of tds) {
+	td.textContent = content[i++];
+	td.onclick = function() {
+		if (this.bgColor == "") {
+			this.bgColor = "dddddd";
+		} else {
+			this.bgColor = "";
+		}
+	};
+}
+	</script>
+
+</body> </html>
