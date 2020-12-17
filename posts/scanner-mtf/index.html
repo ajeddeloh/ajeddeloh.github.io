@@ -37,11 +37,12 @@ Convolving your input with the PSF gives you your output. This also means if we 
 output we can calculate the PSF. </p>
 
 <p> Ideally, the input would be an ideal point source which is expressed mathematically as the <a
-href="">dirac delta function &delta;(x)</a>. Convolving a function with &delta;(x) yields the same
-function (i.e. it is the identity transform), so if the input is &delta;(x) then the output would be
-the PSF. Unfortunately, real world ideal point sources are hard to come by. I could use a pinhole,
-but I'd need a way of measuring it's diameter which is also hard. In order to calculate the PSF I
-need a known input and in two dimensions that's just too hard. </a>
+href="https://en.wikipedia.org/wiki/Dirac_delta_function">dirac delta function &delta;(x)</a>.
+Convolving a function with &delta;(x) yields the same function (i.e. it is the identity transform),
+so if the input is &delta;(x) then the output would be the PSF. Unfortunately, real world ideal
+point sources are hard to come by. I could use a pinhole, but I'd need a way of measuring it's
+diameter which is also hard. In order to calculate the PSF I need a known input and in two
+dimensions that's just too hard. </a>
 
 <p> So instead I'll just measure it in one dimension at a time. I still don't have an ideal point
 source, but you can get an ideal <a href="https://en.wikipedia.org/wiki/Heaviside_step_function">
