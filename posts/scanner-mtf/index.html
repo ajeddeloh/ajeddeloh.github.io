@@ -15,41 +15,41 @@
 	<h3> Background </h3>
 
 <p> I have an Epson V550 perfection for scanning film which is <i>barely</i> adequate. It's just not
-sharp, noisy, and doesn't offer me the control I want. So I thought it would be fun to measure its
-modulation transfer function (MTF) and point spread function (PSF). If you're unfamiliar with what
-those are and how they're related, LenRentals has a <a
+sharp, it's noisy (sensor-wise), and it doesn't offer me the control I want. I thought it would be
+fun to measure its modulation transfer function (MTF) and point spread function (PSF) to determine
+just how soft it is. If you're unfamiliar with what those are and how they're related, LenRentals
+has a <a
 href="https://www.lensrentals.com/blog/2017/10/the-8k-conundrum-when-bad-lenses-mount-good-sensors/">
-great explanation</a> with real world lens examples. If you find it interesting, I highly recommend
-checking out the rest of their blog too. </p>
+great explanation</a> with real world lens examples. If you find that interesting, I highly
+recommend checking out the rest of their blog too. </p>
 
 	<h3> Knife Edge MTF Measurement </h3>
 
-<p> As mentioned in the LensRentals blog post, the MTF curve is just the Fourier transform of the
-PSF. I'll be measuring the PSF and using it to calculate the MTF curve. You can also use the PSF to
-model what image the scanner would produce, given a known, ideal input:
+<p> As mentioned in the LensRentals blog post, the MTF is just the Fourier transform of the PSF.
+I'll be measuring the PSF and using it to calculate the MTF. You can also use the PSF to model what
+image the scanner would produce, given a known, ideal input:
 
 <blockquote>
 	OUTPUT(x) = INPUT(x) &lowast; PSF(x) <br>
-	<i>&emsp;Note: &lowast; is convolution</i>
+	<i>&emsp;Note: &lowast; is <a href="https://betterexplained.com/articles/intuitive-convolution/">convolution</a></i>
 </blockquote>
 
-Convolving your input with the PSF gives you your output. This also means if we know the input and
-output we can calculate the PSF. </p>
+Convolving your input with the PSF gives you your output. If we know the input and output we can
+calculate the PSF. </p>
 
-<p> Ideally, the input would be an ideal point source which is expressed mathematically as the <a
+<p> Ideally, the input would be a perfect point source which is expressed as the <a
 href="https://en.wikipedia.org/wiki/Dirac_delta_function">dirac delta function &delta;(x)</a>.
-Convolving a function with &delta;(x) yields the same function (i.e. it is the identity transform),
-so if the input is &delta;(x) then the output would be the PSF. Unfortunately, real world ideal
-point sources are hard to come by. I could use a pinhole, but I'd need a way of measuring it's
-diameter which is also hard. In order to calculate the PSF I need a known input and in two
-dimensions that's just too hard. </a>
+Convolving a function with &delta;(x) yields the same function (i.e. &delta;(x) &lowast; f(x) =
+f(x)), so if INPUT(x) is a perfect point source &delta;(x) then the output would be the PSF.
+Unfortunately, real world ideal point sources are hard to come by. I could use a pinhole, but I'd
+need a way of measuring it's diameter which is also hard.</p>
 
-<p> So instead I'll just measure it in one dimension at a time. I still don't have an ideal point
-source, but you can get an ideal <a href="https://en.wikipedia.org/wiki/Heaviside_step_function">
-step function</a>: a razorblade edge. The step function also has a handy property: it's derivative
-is &delta;(x). Combining that knowledge with the <a
-href="https://en.wikipedia.org/wiki/Convolution#Differentiation"> derivative of two convolved
-functions</a> we can derive the PSF from just the scanned image of a razorblade edge:
+<p> Instead I'll measure the PSF in one dimension at a time. I still don't have an ideal one
+dimensional point source, but you can get an ideal <a
+href="https://en.wikipedia.org/wiki/Heaviside_step_function"> step function</a>: a razorblade edge.
+The step function also has a handy property: it's derivative is &delta;(x). Combining that knowledge
+with the <a href="https://en.wikipedia.org/wiki/Convolution#Differentiation"> derivative of two
+convolved functions</a> we can derive the PSF from just the scanned image of a razorblade edge:
 
 <blockquote>
 
@@ -94,34 +94,46 @@ I've written a <a href="https://gist.github.com/ajeddeloh/07073bae201f0024e44295
 script</a> to load an image of just the edge, calculate the MTF curves for every row/column, and
 plot them all. It's what I used to generate the graphs below.
 
-	<h3> Are the horizontal and vertical resolution the same? </h3>
+	<h3> Are the horizontal and vertical resolution the same? </h3> 
 
-The razor blade would not fit in the Epson film holders, so I used a slide frame. There is a slight
-difference in the height (1.0mm for the Epson, 0.9mm for the frame) but that turns out to not make
-much difference. More on that later.
+<b> Update 12/20: </b> <i> I ran the horizontal test again and got different results. I think the
+originally published results were taken with a gamma curve applied. This post has been edited to
+reflect the new data. </i>
+
+<p> The razor blade would not fit in the Epson film holders, so I used a slide frame. There is a
+slight difference in the height (1.0mm for the Epson, 0.9mm for the frame) but that turns out to not
+make much difference. More on that later. </p>
 
 <center>Vertical edge, in slide frame, 0.9mm above glass</center>
 <img src=./vertical_framed.png>
 
-The graph is "fuzzy" because I graphed the MTF for all rows of pixels crossing over the razor blade
-edge. Any dust, noise, etc can cause the fuzziness. 
+<p> The graph is fuzzy because I plotted the MTF for all rows of pixels crossing over the razor
+blade edge on the same graph. Any dust, noise, or nicks in the razor blade can cause fuzziness. </p>
 
 <center>Horizontal edge, in slide frame, 0.9mm above glass</center>
 <img src=./horizontal_framed.png>
 
-Looking at the two graphs, there doesn't seem to be much difference in either direction, so from now
-on I'll just be running tests in the vertical direction.
+Looking at the two graphs, the scanner is sharper measuring a vertical edge. This means scans of
+landscape photos will be sharper vertically than horizontally. In practice, I don't notice this in
+actual scans of film, but if you were scanning film shot with an anamorphic lens, it might be a good
+idea to mount them in slide frames and rotate them. I wonder if this is in part due to the sensor
+bar moving and vibration causing blurriness.
 
 	<h3> How does this differ from others results </h3>
 
-<a href=https://www.filmscanner.info/en/EpsonPerfectionV600Photo.html>ScanDig</a> has also performed
-resolution tests on the V600 (which is nearly identical to the V550). They found the resolution to
-be different in the vertical and horizontal directions at about 25 lp/mm and 35 lp/mm (to convert
-from ppi to lp/mm divide by 50.8). This corresponds to about an MTF of 20% and 10% on my scans,
-which seems reasonable as a threshold for the smallest delta discernible. The discrepancy between
-their results and mine could be due to model-to-model variance. Since they are not measuring MTF and
-rely on human judgement our results are not directly comparable, but they appear to be in the same
-ballpark.
+<b> Update 12/20: </b> <i> This has been updated with the new data described above </i>
+
+<p> <a href=https://www.filmscanner.info/en/EpsonPerfectionV600Photo.html>ScanDig</a> has also
+performed resolution tests on the V600 (which is nearly identical to the V550). They also found the
+resolution to be different in the vertical and horizontal directions at about 25 lp/mm and 35 lp/mm
+(to convert from their PPI to lp/mm divide by 50.8). Their test methodology is different from mine.
+Instead of measuring the full MTF they determine the resolution they can no longer discern the
+difference between black and white bars in a test target. </p>
+
+<p> Their measurements correspond to an MTF of ~5% on both of my graphs. This seems reasonable as a
+threshold for the smallest discernible contrast. Since they are not measuring a full MTF curve and
+rely on human judgement to determine the resolution, our results are not directly comparable, but
+they are in the same ballpark. </p>
 
 	<h3> How much does height above the glass matter? </h3>
 
@@ -130,6 +142,7 @@ that custom film holders can solve this problem. I put the razor blade in at an 
 the edge of the slide holder so the height of the edge varied over distance. This allows me to see
 how the MTF changes with film height. </p>
 
+<center> Slanted test setup </center>
 <img src="./slant_setup.jpg">
 
 <p> Then I graphed the MTF at three spatial resolutions (10, 20 and 30 lp/mm) vs the y coordinate
@@ -138,6 +151,7 @@ resting on the edge of the slide holder (4.2mm tall). I kept it in because it le
 end of the graph was (nearly) against the glass (left) and which was significantly above it (right).
 </p>
 
+<center> MTF at 10, 20, and 30 lp/mm. Left side of graph is on glass </center>
 <img src="./slant.png">
 
 <p> Height above the glass clearly has an effect on MTF, but the best position is about the same as
@@ -145,7 +159,17 @@ the height the razor blade sits at in the slide holder. I don't think there's mu
 buying custom holders unless your film is curling/bowing up significantly. Then again, this could
 vary unit to unit.</p>
 
-	<h3> Does VueScan help? </h3>
+<b> Update 12/21: </b><i>This subsection was added</i>
+<br><br>
+
+<center> MTF at 10, 20, and 30 lp/mm. Right side of graph is on glass </center>
+<img src="./h_slant.png">
+
+<p> Testing with the razorblade running horizontally at a slant produced similar results; the area
+of best focus near but not on the glass. The MTF was lower across the board which also matches the
+MTF curve above where the horizontal edge is not as sharp as the vertical edge.</p>
+
+<h3> Does VueScan help? </h3>
 
 <p> In a word: No. </p>
 
