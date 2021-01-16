@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> VueScan's Autofocus is Nonfunctional </title>
+</head>
+
+<body>
+	<a href=/index.html> Back to index </a> <hr>
+
+	<h2> VueScan's Autofocus is Nonfunctional </h2>
+
+	<h3> Background </h3>
+
+<p> In my <a href=../scanner-mtf>previous post</a> I mentioned that while VueScan has the option to
+use manual or automatic focus, it doesn't actually change how the scanner operates. This post is
+proof that it doesn't do anything. To be clear, as far as I can tell, the v550 does not support
+changing focus at all. This is not a shortcoming of VueScan, aside from presenting an option when it
+shouldn't.</p>
+
+<p> VueScan has a drop down for autofocus with the options of "Always", "Scan", "Preview" and
+"Manual". Selecting "Manual" adds a slider that can be used to set the focus from -1.0 to 1.0. For
+my tests I compared the commands sent to the scanner with it set to "Always" and "Manual" at both
+-1.0 and 1.0. </p>
+
+<img src=dropdown.png>
+
+	<h3> The Epson v550 and Linux </h3>
+
+<p> Epson's v550 scanner driver is split into an open source part (named epkowa) and a v550 specific
+proprietary plugin. Both of these are installed as shared libraries at
+<code>/usr/lib/sane/libsane-epkowa.so</code> and
+<code>/usr/lib/iscan/libiscan-plugin-perfection-v550.so</code>, respectively. After digging around a
+while I discovered that the open source driver communicates to the scanner in a protocol called
+ESC/I which doesn't seem to be documented anywhere. Some <a
+href=https://files.support.epson.com/pdf/per16u/per16upg.pdf>manuals</a> make reference to it
+though. The v550 does not implement ESC/I directly, so the proprietary plugin interprets the ESC/I
+and converts it to the scanner's native protocol. This is why it's referred to as an interpreter in
+the <code>/usr/var/lib/iscan/interpreter</code> config file.</p>
+
+	<h3> What is VueScan using? </h3>
+
+<p> Running
+
+<blockquote><code>$ strace -P /usr/lib/sane/libsane-epkowa.so ./vuescan</code></blockquote>
+
+and
+
+<blockquote><code>$ strace -P /usr/lib/iscan/libiscan-plugin-perfection-v550.so
+./vuescan</code></blockquote>
+
+shows that while VueScan does not use the open source <a href=https://sane-project.org>SANE</a>
+interface, it does use the proprietary plugin. Fortunately, since the main epkowa driver is open
+source, the API for that plugin is <a
+href=https://github.com/ajeddeloh/iscan/blob/v2_30_4_2/backend/epkowa_ip_api.h>documented</a>. This
+means I can create a shim that intercepts and logs calls to the shared library (see more details <a
+href=https://rafalcieslak.wordpress.com/2013/04/02/dynamic-linker-tricks-using-ld_preload-to-cheat-inject-features-and-investigate-programs/>here</a>).
+</p>
+
+<p> You can find the source for my shim <a href=https://github.com/ajeddeloh/v550_wrapper>here</a>.
+It's pretty simple and just logs everything being sent to/from the scanner to stderr with a R or W
+prefix to indicate reads/writes. <p>
+
+	<h3> Results </h3>
+
+<i> Full logs (except for image data) are available <a
+href=https://github.com/ajeddeloh/v550_wrapper/tree/master/results>here</a> </i>
+
+<p> I ran VueScan both in normal scanning mode and in preview mode collecting logs scanning with
+autofocus, with manual focus at the minimum, and with manual focus at the maximum. The first thing
+that's clear is that there is no difference between the minimum and maximum focus: </p>
+
+<blockquote><code>
+	$ diff close_focus.log far_focus.log &amp;&amp; echo Same<br>
+	&gt; Same
+</code></blockquote>
+
+<p> There is a slight difference between autofocus and the manual focus: </p>
+
+<blockquote><code>
+	$ diff close_focus.log auto_focus.log <br>
+	&gt; W: 1b 65<br>
+	&gt; R: 6<br>
+	&gt; W: 1<br>
+	&gt; R: 6<br>
+</code></blockquote>
+
+<p> The first line is ESC-e which is the command to <a
+href=https://github.com/ajeddeloh/iscan/blob/v2_30_4_2/backend/command.c#L602 >control an
+extension</a>. Extensions refer to extra parts like automatic document feeds or the transparency
+scanning unit. It then reads back 6, writes 1 and reads another 6. I'm not sure what the one ands
+sixes mean, but the open source driver call this function when <a
+href=https://github.com/ajeddeloh/iscan/blob/v2_30_4_2/backend/epkowa.c#L1392>enabling an
+extension</a>. My <i>guess</i> as to what's happening is VueScan has a common code path for turning
+on autofocus that starts by enabling the transparency unit then does something device specific
+(which is nothing for this scanner). But that's just a guess; I have no data to back that up. In any
+case, it isn't doing anything to change how the scanner focuses. </p>
+
+	<h3> Why not use LD_PRELOAD? Or ltrace? </h3>
+
+<p> I tried but neither works in this case. Since VueScan is loading the shared library directly
+from it's absolute path with <code>dlopen()</code>, LD_PRELOAD doesn't have any effect. From
+<code>man 3 dlopen</code>: </p>
+
+<blockquote>If filename is NULL, then the returned handle is for the main program. If filename
+contains a slash  ("/"), then it is interpreted as a (relative or absolute) pathname. Otherwise, the
+dynamic linker searches for the object as follows (see ld.so(8) for further details)</blockquote>
+
+<p> Since the path does have a slash, the dynamic linker does not search for the object and thus
+<code>LD_PRELOAD</code> is not used </p>
+
+<p> I tried using <code>ltrace</code> but could not get it to work. Perhaps it has issues with
+<code>dlopen</code> as well?</p>
+
+	<h3> Final Thoughts </h3>
+
+It's still possible that VueScan communicates with the scanner directly without the interpreter. I
+didn't snoop on the USB traffic. I do think that it's unlikely, especially since my previous post
+showed VueScan is no sharper than just using the SANE API.
+
+<hr> <a href=/index.html> Back to index </a> 
+
+</body> </html>
