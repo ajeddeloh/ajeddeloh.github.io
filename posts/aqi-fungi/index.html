@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> AQI sensor and Failed Fungi </title>
+</head>
+
+<body>
+	<a href=/index.html> Back to index </a> <hr>
+
+	<h2> AQI sensor and Failed Fungi </h2>
+
+This is another combo post since each topic felt like it didn't deserve its own post.
+
+	<h3> AQI Sensor </h3>
+
+<a href="https://github.com/ajeddeloh/uAqiExporter">View source on GitHub</a>
+
+<p> I got a PlanTower PMS7003 AQI sensor a while ago and finally got around to hooking it up. I was
+going to make a simple webserver to just display graphs, but my housemate Evan offered to set up
+Prometheus and Grafana if I wrote an exporter for Prometheus, so I did that instead. I used a
+Raspberry Pi Zero W that Evan had kicking around. This is ideal since it has WiFi and a built in
+serial port. <p>
+
+<p> The hardware setup is pretty simple. The sensor runs on 5V but uses 3.3V logic for it's serial
+lines, this means I can wire it directly to the Pi's 5V, GND, TX, and RX pins. I also connected the
+sensor's SET and RESET pins to some GPIO pins, but they're currently unused. In the future I may use
+them to reset the sensor if I detect an error state, but that hasn't been an issue so far.</p>
+
+<img src="hardware.jpg"> <div style="text-align: right"><i>Hardware setup</i></div>
+
+<p> Initially I wrote the Prometheus exporter as a small <a
+href="https://gist.github.com/ajeddeloh/5895db2f6d3b213534fa55e69f76bdbd"> python script</a> but
+then decided it would be more fun to <a href="https://github.com/ajeddeloh/uAqiExporter"> rewrite it
+in C</a>. It's a very barebones web server (and almost certainly not compliant with HTTP standards),
+but it works enough that Prometheus doesn't complain. </p>
+
+<p> Since all requests need to access the sensor and since the sensor can only handle one request at
+a time, there was no need to use threads to handle incoming requests. This meant I could ignore all
+concurrency problems by simply not using any concurrency. This server is queried every 15 seconds by
+Prometheus; there's no need for it to handle lots of requests. </p>
+
+<a href="software.png"><img src="software.png"></a> <div style="text-align: right"><i>Our pretty
+Grafana Graphs, click for high res</i></div>
+
+
+<p> One clever trick is to set <code>VMIN</code> and <code>VTIME</code> (see <code>man 3
+termios</code>) such that <code>read()</code> wont read less than <code>VMIN</code> bytes unless
+there's more than <code>VTIME</code> delay between bytes. Since I know how many bytes to expect in
+response I can set <code>VMIN</code> to this size and not worry about <code>read()</code> returning
+with less than the full response. Unfortunately <code>read()</code> will still block indefinitely
+for the first byte, so it's useful to <code>poll()</code> first to timeout if there's no response.
+</p>
+
+<p> We originally set this up on a Raspberry Pi 4 using <a href="https://podman.io/">podman</a> to
+run Prometheus and Grafana. When we migrated to the Zero W Pi we discovered that there aren't Docker
+containers for arm32v6, so we had to switch to running them as normal binaries. Oh well. </a>
+
+<p> Finally a note to anyone with these sensors: it's not documented in the datasheet, but after
+sending the command to switch to passive mode, the sensor sends an 8 byte response. I didn't bother
+trying to decipher what the response contains. Additionally there appears to be a (short) period
+after the sensor responds to a request where it wont recognize new commands. I work around this by
+just resending the command if I don't get a response within a second.</p>
+
+	<h3> Failed Fungi </h3>
+
+<p> I've been wanting to try growing oyster mushrooms for a while but have been turned off by the
+price of spawn kits (usually $20). Plus I wanted to grow them on coffee grounds instead of an
+already prepared substrate. I noticed that my local grocery store sells oysters in clumps that often
+have some of the mycelium still intact and wanted to know if I could grow the oysters from that.
+</p>
+
+<p> I sterilized a jar in the dishwasher and then saved coffee grounds in it until it was about half
+full. To try to keep things sterile I kept it in the freezer while I filled it. I then cut off the
+bottoms of the mushrooms (and ate the tops, yum!), broke them up and added them to the jar. </p>
+
+<img src="start.jpg"> <div style="text-align: right"><i>Mushroom jar when it started</i></div>
+
+<p> Within a day the mushrooms had grown fuzzy all over, presumably with mycelium not mold. I let it
+go for a while but it seemed to be quite slow so after a couple more days I sterilized a metal
+chopstick and stirred things up, hoping to get better contact between the mycelium and the grounds.
+Unfortunately after a couple more days I discovered blue-green mold growing in the jar and had to
+scrap the project. </p>
+
+<img src="mold.jpg"> <div style="text-align: right"><i>Blue-green mold growing in the jar</i></div>
+
+<p> My friend Cam (the one whose <a href="../repair-roundup"> battery I fixed</a>) also tried this
+out but sterilized his jars with a pressure cooker and chopped his mushroom bases up more finely.
+He's having better success, so I might try again and put more effort into keeping things sterile. I
+suspect opening my jar to stir things up was a mistake. </p>
+
+<img src="cam.jpg"> <div style="text-align: right"><i>Cam's more successful jar</i></div>
+
+<p> I have very little experience in this area and don't even know that what I think was mycelium
+wasn't really mold. If you know more about this or have any tips, tricks, or insights to share,
+please shoot me <a href="/about.html">an email</a>.
+
+<hr> <a href=/index.html> Back to index </a> 
+
+</body> </html>
