@@ -47,7 +47,7 @@ Grafana Graphs, click for high res</i></div>
 
 
 <p> One clever trick is to set <code>VMIN</code> and <code>VTIME</code> (see <code>man 3
-termios</code>) such that <code>read()</code> wont read less than <code>VMIN</code> bytes unless
+termios</code>) such that <code>read()</code> won't read less than <code>VMIN</code> bytes unless
 there's more than <code>VTIME</code> delay between bytes. Since I know how many bytes to expect in
 response I can set <code>VMIN</code> to this size and not worry about <code>read()</code> returning
 with less than the full response. Unfortunately <code>read()</code> will still block indefinitely
@@ -61,7 +61,7 @@ containers for arm32v6, so we had to switch to running them as normal binaries. 
 <p> Finally a note to anyone with these sensors: it's not documented in the datasheet, but after
 sending the command to switch to passive mode, the sensor sends an 8 byte response. I didn't bother
 trying to decipher what the response contains. Additionally there appears to be a (short) period
-after the sensor responds to a request where it wont recognize new commands. I work around this by
+after the sensor responds to a request where it won't recognize new commands. I work around this by
 just resending the command if I don't get a response within a second.</p>
 
 	<h3> Failed Fungi </h3>

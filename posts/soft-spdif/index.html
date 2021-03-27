@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> Software STM32 S/PDIF decoder </title>
+</head>
+
+<body>
+	<a href=/index.html> Back to index </a> <hr>
+
+	<h2> Software STM32 S/PDIF decoder </h2>
+
+<a href="https://github.com/ajeddeloh/soft-spdif">View source on GitHub</a>
+
+	<h3> Background </h3>
+
+<p> Last time I moved, I set up my <a href="../fixing-sx525"> receiver</a> and speakers across the
+room from my desk and computer. It's a pretty long (~20 feet) cable run. I was worried the audio
+quality would degrade over that distance, especially over my cheap cables. While that didn't end up
+being a issue, I considered a lot of possible solutions, like using differential signals, Bluetooth,
+PulseAudio, or S/PDIF. While I have no need for a S/PDIF decoder since the analog signal works just
+fine, the idea stuck rattled around in my head for a while. My STM32L476 Discovery board has an
+I<sup>2</sup>S DAC on it, but no hardware S/PDIF decoder, so I figured it would be fun to write a
+S/PDIF to I<sup>2</sup>S converter. </p>
+
+<img src="result.jpg"> <div style="text-align: right"><i>The final project</i></div>
+
+	<h3> S/PDIF Primer </h3>
+
+<i>Note: S/PDIF supports many audio formats. This only talks about 16 bit raw PCM mode.</i>
+
+<p> S/PDIF uses <a href="https://en.wikipedia.org/wiki/Differential_Manchester_encoding">biphase
+mark encoding</a> to create a self clocking signal. S/PDIF sends its data in frames, each of which
+is made of two subframes. Each subframe is a sample for a channel. Each subframe starts with a
+synchronization pattern (which is not biphase mark encoded) which denotes both the start of frame as
+well as a which channel it is. STM has an <a
+href="https://www.st.com/content/ccc/resource/technical/document/application_note/group0/c5/67/84/35/7e/4c/4c/19/DM00431633/files/DM00431633.pdf/jcr:content/translations/en.DM00431633.pdf">application
+note</a> on using their higher end microcontrollers to decode S/PDIF using a built in hardware
+peripheral, but it also includes information on the protocol itself, if you want to learn more.</p>
+
+<p> To decode S/PDIF there are a few basic steps:
+
+<ol> <li> Recover the clock so you can read the incoming data </li>
+
+<li> Find the start of the frame and synchronize the stream so you can read frames </li>
+
+<li> Read in the data </li>
+
+<li> Decode the biphase mark encoding and extract the data </li></ol>
+
+S/PDIF also sends metadata about the signal, its source, etc, but in my case I didn't care so I
+ignored it.
+
+</p>
+
+	<h3> Things Which Didn't Work and Other Challenges</h3>
+
+	<h4> Finding a S/PDIF source </h4>
+
+<p> The first problem was finding a S/PDIF source. My old desktop has an TOSLINK (optical) port but
+no coax and I'd prefer to not have to make/buy a converter. Luckily I have a spare Raspberry Pi 4
+and there's <a href=https://github.com/mill1000/raS/PDIF>a project</a> to send raw PCM data out as
+S/PDIF. I ran into a few <a href="https://github.com/mill1000/raS/PDIF/issues/10">issues</a> getting
+it to work on a Pi 4 but once I fixed them it worked great. </p>
+
+	<h4> Using the DFDSM for clock recover </h4>
+
+<p> The STM32L476 does not have a hardware S/PDIF decoder, nor does it have a clock recovery
+peripheral. However, it does have "Digital Filter for Delta Sigma Modulators" peripheral that can
+recover the clock from manchester encoded data streams. My initial plan was to use that for clock
+recovery and connect the CKOUT signal on the PC2 pin to the SPI clock input and read the data in as
+SPI. Unfortunately, that pin isn't broken out on the header on my the development board and is
+instead hooked up to a magnometer. I didn't want to bodge-solder on a lead to the pin so that plan
+was out. I'm also not sure if a recovered clock signal is output onto CKOUT when doing clock
+recovery. It may only be used when the STM is generating the clock signal itself. The reference
+manual is unclear. </p>
+
+	<h4> Using DMA with bit banding to update timer configuration </h4>
+	
+<p> My next idea was to use timers triggered on the rising edge of the S/PDIF signal to generate the
+SPI clock and I<sup>2</sup>S MCLK. However, since the MCLK frequency isn't a nice multiple of my
+80MHz core clock, they need to be synced _very_ frequently. For 48kHz audio the MCLK frequency is
+about 12MHz, which means a period of 6.5 cycles. Since there are potentially 8 MCLK cycles between
+rising edges of the S/PDIF signal that means 4 cycles of drift since the period must be an integer.
+Given the time between transitions is only 3 cycles, that's a problem. </p>
+
+<p> So I tried to see if I could sync every edge, whether it's rising or falling. Unfortunately, the
+timers don't support this: you can sync on a rising edge or a falling edge (controlled by the
+<code>ETP</code> bit in the <code>SMCR</code> register) but not both. My idea for solving this was
+to use DMA to toggle the state of that bit by copying the bit from GPIO to the <code>SMCR</code>
+register using bit banding. </p>
+
+<p> The first problem is that the GPIO peripheral's memory mapped registers are outside the bit
+banding memory range. This was okay, however since the pin I was using was PE8, which means the data
+is in the LSB of the second byte of the <code>GPIOE-&gt;IDR</code> register. I could just use that
+byte as the DMA source.</p>
+
+<p> The second problem is that <i>you can't use DMA and bit banding together</i>. Bit Banding is
+handled by the core and thus not available to peripherals like DMA. How unfortunate. This was pretty
+much the death knell of the sync-every-edge idea. </p>
+
+<p> In the end I just ran it at 44.1kHz which divides more evenly. I still need to sync the timers
+but don't need to do it every edge. </p>
+
+	<h4> Pulsing NSS to sync the stream </h4>
+
+<p> Once I had clock recovery working (again, more on that later), I could read the S/PDIF data
+stream in using the SPI peripheral. The next step is syncing the SPI stream so it starts capturing
+the data at the start of the frame. By finding the synchronization sequence in the captured data I
+can calculate how many S/PDIF clock cycles the receiver is off by then pause the SPI for that many
+cycles to get it synced. I planned to use a timer to generate a pulse and connect it to the SPI NSS
+pin. Sadly, if you disable the NSS line it does not pause the current SPI capture; it aborts it.
+Then when NSS is active again it starts a new capture. This would work great if I could be certain I
+was pausing it at a given time (i.e. at the end of an SPI capture), but with a clock period of 14
+clock cycles I don't have that luxury. I need to be able to pause mid capture and resume like
+nothing happened. </p>
+
+<p> I ended up disabling the SPI clock during the pulse instead, but more on that in the next
+section. </p>
+
+	<h4> Giving up on I<sup>2</sup>S generation </h4>
+
+<p>My development board has an I<sup>2</sup>S DAC attached to the <code>SAI1</code> peripheral,
+which I was hoping to use. However in order to stay in sync with the S/PDIF stream I need to generate
+the MCLK signal based on the clock recovered from the S/PDIF stream. The <code>SAI1</code> peripheral
+allows for this but only on pin <code>PA0</code> which is needed for the timers (more on that
+later). There wasn't any way to get around that so I gave up on generating audio and decided to just
+decode the S/PDIF and call it a day.</p>
+
+	<h3> Solution </h3>
+
+	<h4> SPI SCLK Generation </h4>
+
+<p> To generate the clock I use several timers. They have a two main jobs: generating the SPI clock
+and pausing it for a precise length of time to sync the frames. Originally they also needed to
+generate the MCLK signal for the I<sup>2</sup>S DAC, but that part was abandoned. Below is a diagram
+showing how all the timers are connected. </p>
+
+<img src="diagram.png"> <div style="text-align: right"><i>Timer configuration</i></div>
+
+<p> Most of how the design is dictated by what GPIO pins I had available and how the timers are
+connected internally. There are only two timers with external GPIO triggers (TIM8 and TIM2) and
+TIM8's only available output channel is on the same pin as the TIM2 external trigger. I ended up
+using TIM8 to generate an internal MCLK signal synced to the S/PDIF stream, then TIM5 to relay its
+output to a GPIO pin. </p>
+
+<p> To recover the clock, TIM8 is set up in external trigger and reset mode. It generates PWM on
+channel 1 with the appropriate period and duty cycle for the recovered clock signal. The external
+trigger is connected to the S/PDIF signal, which ensures every rising edge of the S/PDIF signal it
+gets synced. Since the microcontroller clock and S/PDIF clock are independent of each other and not
+even multiples of each other this generates a lot of jitter, but that's fine for just decoding.</p>
+
+<img src="jitter.png"> <div style="text-align: right"><i>Not exactly low jitter</i></div>
+
+<p> To generate the SPI clock in sync with the S/PDIF source and in a way that can be paused, TIM2
+operates in gated + external clock mode and divides its external clock by 2. In this mode the
+external clock must be from GPIO, so a jumper connects the output of TIM5 to the external trigger of
+TIM2. The internal trigger is the gate and controls if the timer is active or not. It is connected
+to TIM4 which generates the pulse to pause it. Its output is the SPI clock and connected to the SPI
+peripheral via a jumper. <p>
+
+<p> TIM4 uses the internal MCLK signal from TIM8 and generates the frame sync pulses. Once the first
+frame is captured, the software determines the offset and configures TIM4 to generate a pulse which
+pauses TIM2 (and thus the SPI clock) long enough to be start up again in sync. </p>
+
+	<h4> Biphase Mark Decoding </h4>
+
+<p> Biphase mark is easy enough to decode. You simply take your data, XOR it with a copy bit shifted
+by one, then read the data you want off of every other bit. There are some fancier ways to do this
+using more complicated bitwise math, but the naive approach was fast enough so I didn't bother. </p>
+
+	<h3> Results </h3>
+
+<p> The project decodes S/PDIF just fine. It would have been nice to get it actually using the DAC
+but at this point I'm tired of this project and want to work on other things. I tested by running
+
+<pre><code>[root@pi ~]# yes $'\xad\xde\xef\xbe' | tr -d '\n' | ./raspdif</code></pre>
+
+and using the debugger to verifying it was in fact correctly decoding <code>0xdeadbeef</code>. Note
+the data in the argument to <code>yes</code> is byte swapped since raspidif expects little endian
+data. </p>
+
+
+<hr> <a href=/index.html> Back to index </a> 
+
+</body> </html>
