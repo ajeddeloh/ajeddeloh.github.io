@@ -61,8 +61,8 @@ ignored it.
 
 <p> The first problem was finding a S/PDIF source. My old desktop has an TOSLINK (optical) port but
 no coax and I'd prefer to not have to make/buy a converter. Luckily I have a spare Raspberry Pi 4
-and there's <a href=https://github.com/mill1000/raS/PDIF>a project</a> to send raw PCM data out as
-S/PDIF. I ran into a few <a href="https://github.com/mill1000/raS/PDIF/issues/10">issues</a> getting
+and there's <a href=https://github.com/mill1000/raspdif>a project</a> to send raw PCM data out as
+S/PDIF. I ran into a few <a href="https://github.com/mill1000/raspdif/issues/10">issues</a> getting
 it to work on a Pi 4 but once I fixed them it worked great. </p>
 
 	<h4> Using the DFDSM for clock recover </h4>
@@ -148,9 +148,10 @@ output to a GPIO pin. </p>
 
 <p> To recover the clock, TIM8 is set up in external trigger and reset mode. It generates PWM on
 channel 1 with the appropriate period and duty cycle for the recovered clock signal. The external
-trigger is connected to the S/PDIF signal, which ensures every rising edge of the S/PDIF signal it
-gets synced. Since the microcontroller clock and S/PDIF clock are independent of each other and not
-even multiples of each other this generates a lot of jitter, but that's fine for just decoding.</p>
+trigger is connected to the S/PDIF signal, which ensures it gets synced every rising edge of the
+S/PDIF signal. Since the microcontroller clock and S/PDIF clock are independent of each other and
+not even multiples of each other this generates a lot of jitter, but that's fine for just
+decoding.</p>
 
 <img src="jitter.png"> <div style="text-align: right"><i>Not exactly low jitter</i></div>
 
@@ -161,15 +162,16 @@ TIM2. The internal trigger is the gate and controls if the timer is active or no
 to TIM4 which generates the pulse to pause it. Its output is the SPI clock and connected to the SPI
 peripheral via a jumper. <p>
 
-<p> TIM4 uses the internal MCLK signal from TIM8 and generates the frame sync pulses. Once the first
-frame is captured, the software determines the offset and configures TIM4 to generate a pulse which
-pauses TIM2 (and thus the SPI clock) long enough to be start up again in sync. </p>
+<p> TIM4 uses the internal MCLK signal from TIM8 as its clock and generates the frame sync pulses.
+Once the first frame is captured, the software determines the offset and configures TIM4 to generate
+a pulse which pauses TIM2 (and thus the SPI clock) long enough to be start up again in sync. </p>
 
 	<h4> Biphase Mark Decoding </h4>
 
-<p> Biphase mark is easy enough to decode. You simply take your data, XOR it with a copy bit shifted
-by one, then read the data you want off of every other bit. There are some fancier ways to do this
-using more complicated bitwise math, but the naive approach was fast enough so I didn't bother. </p>
+<p> Biphase mark encoding is easy enough to decode. You simply take your data, XOR it with a copy
+bit shifted by one, then read the data you want off of every other bit. There are some fancier ways
+to do this using more complicated bitwise math, but the naive approach was fast enough so I didn't
+bother. </p>
 
 	<h3> Results </h3>
 
