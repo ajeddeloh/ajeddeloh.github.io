@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> Fixing a Coway AP-1512HH Air Purifier </title>
+</head>
+
+<body>
+	<a href=/index.html> Back to index </a> <hr>
+
+	<h2> Fixing a Coway AP-1512HH Air Purifier </h2>
+
+<p> My friend found a broken Coway air purifier for free on Craigslist near me and shot me message
+so I could pick it up. My roommate grabbed it and then all I needed to do was fix it.</p>
+
+<img src=./filter.jpg>
+
+<p> After opening it up, I checked the power cord and fuse. Both of those were good. Next I plugged
+it in and checked the power supply. Thankfully, the power supply board is labeled with what voltages
+to expect on each pin. Everything was good there. </p>
+
+<img src=./power-supply.jpg>
+
+</p>  Next was the logic board. I checked all the diodes, just because that's easy to do, and they
+were all good. I also found a reed switch used in tandem with a magnet to detect if the case is
+open. For the purposes of testing I disconnected it and replaced it with a jumper. Next I started
+looking at the ICs. There are three on board: a D78F0513 8 bit microcontroller, a ATMLH920 serial
+EEPROM and KIA7032AP voltage detector. I checked that the microcontroller had power and it did. Then
+I looked up the voltage detector and saw that it is frequently used to hold chips in the reset state
+until their power supply is stable. I checked the reset line and saw that it was indeed connected to
+the KIDA7032AP. 
+
+<img src=./logic-board.jpg>
+
+<p> Looking at the reset line voltage, it was about 1.8V, which is still a logic low for 5V parts.
+My theory was that the KIA7032AP chip had died and was refusing to release the reset line. To test
+this I removed it and manually pulled the line low while my roommate plugged the device in. After a
+couple seconds I ungrounded the reset line and the device powered up. I ordered some replacement
+parts (AZ7033), soldered them in, put the device back together and it worked. </p>
+
+<img src=./fixed.jpg> 
+
+<p> Overall this was a pretty easy fix. I ended up using a slightly different part than the one I
+replaced but the only difference is that the new one turns on at 3.3V instead of 3.2V. The 3.2V
+version was out of stock at Digi-Key. The purifier's case is also a bit annoying to get back
+together, but at least they only used one type of screw. There's also a debugging header exposed
+which could be interesting to look at, but I didn't bother this time. </p>
+
+<p> If you have one of these that's broken and need advice fixing it, drop me a line. </p>
+
+<hr> <a href=/index.html> Back to index </a> 
+
+</body> </html>
