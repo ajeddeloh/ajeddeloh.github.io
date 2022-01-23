@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> Resistor Color Code Charts Are Wrong </title>
+</head>
+
+<body>
+	<a href=/index.html> Back to index </a> <hr>
+
+	<h2> Resistor Color Code Charts Are Wrong </h2>
+
+<p>Ok, fine, they're <i>correct</i>, but they're needlessly confusing.</p>
+
+<p> Here's a color code chart from DigiKey. To use it, take the first two (or three for five band
+resistors), make a 2 (or 3) digit number from them and multiply it by the next band. The tolerance
+is the band after that. Simple enough. Except <i>that's not how people think about
+resistors</i>.</p>
+
+<img src="digikey.png"> <div style="text-align: right"><i>DigiKey's Color Code Diagram</i></div>
+
+<p>When I want a 560k resistor I don't think of wanting 56 * 10k, I think of wanting 5.6 * 100k. I
+have to start with 56 and then figure out what to multiply it by to get 560k. Of course we can all
+do division but the point of a cheat sheet is to <i>avoid</i> doing math and get your answer faster.
+Ideally I should be able to figure out 5.6 is green-blue then look up that yellow gives me
+resistances in the 100k range for a four band resistor. </p>
+
+<p>The standard decoding chart has one advantage however: it handles all resistors with one chart.
+560k is green-blue-yellow for four band resistors but green-blue-black-orange for five or six band
+resistors. The extra digit means you need to multiply by one less decade. However I'd argue this
+only makes using the chart more error prone. It's one chart for two different processes: one where
+you're dividing by a 2 digit number and one where you're dividing by a three digit number. Just make
+two charts or two different multiplier columns.</p>
+
+<p>Here's what a better chart might look like:</p>
+
+<img src="new.png"> <div style="text-align: right"><i>An Easier to Read Chart</i></div>
+
+<p>I've omitted graphics because I'm not good at making them. To use this chart create a number out
+of the first two or three bands in the form A.B or A.BC, then multiply by the decade listed for your
+number of bands. No mental math required.</p>
+
+
+<hr> <a href=/index.html> Back to index </a> 
+
+</body> </html>
