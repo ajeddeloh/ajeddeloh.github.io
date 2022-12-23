@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link type=text/css href=/main.css rel=stylesheet />
+	<title> Improved Camera Shutter Speed Measurement </title>
+</head>
+
+<body>
+	<a href=/index.html> Back to index </a> <hr>
+
+	<h2> Improved Camera Shutter Speed Measurement </h2>
+
+	<h3> Background </h3>
+
+<p> I previously wrote about measuring camera shutter speed, but the results from that were not as
+conclusive as I would have liked. Specifically the rise and falls times on the waveforms were so
+slow it's hard to know when the shutter actually opened and closed when checking the fast speeds
+like 1/1000. </p>
+
+	<h3> Why the rise/fall times are slow </h3>
+
+<p> There are two main problems: the electronics and the geometry. </p>
+
+	<h4> The electronics </h4> 
+
+<p> I built the original circuit out of stuff I had on hand. Using LEDs as photodiodes is not ideal
+and swapping them out for real ones helped a bit. Both of these have a fairly large amount of
+capacitance and only allow a small amount of current to flow however, so phototransistors are a
+better bet. The other big change was dramatically reducing the resistor to 100 ohms. This greatly
+improved the speed at the expense of the amplitude of the voltage swing. TODO: write about how to
+test it </p>
+
+	<h4> Geometry </h4>
+
+<p> The other main problem was the geometry of the setup. The detectors are big enough that they
+take up a non-negligible portion of the film plain. We know the shutter curtain covers 36mm in
+approximately 1/60s which means each millimeter takes 0.46ms to be uncovered. If our sensor is 2mm
+wide that means it would take 0.92ms to go from uncovered to covered, causing the slow rise time.
+</p>
+
+<p> To make matters worse, the light source is not collimated and thus light can enter as stray
+angles. Since the detectors aren't completely flush with the focal plane, this stray light can cause
+the sensor to start detecting "early" and finish "late", further spreading out the waveform. </p>
+
+
+	<h3> Improving the Setup </h3>
+
+	<h4> Geometry and Lasers </h4>
+
+<p> I changed a couple things with the new setup. First, I use a pair of laser pointers as the light
+sources. These are much more intense and help with SNR. However, they're beam is still pretty wide
+and would be subject to the same geometry problems of the previous setup. To counter this, I shine
+then through the lens (a 50mm works fine) to focus them onto the shutter curtain. This ensures the
+beam is as small as possible at the shutter curtain and thus is partly blocked for the shortest
+amount of time. As a bonus, the beam then diverges out the back of the camera. If you place the
+detector where it has then diverged then detector is a smaller section of the beam and 
+
+<center>Diagram of new setup</center> <img src=./diagram.png>
+
+<p> The graph is fuzzy because I plotted the MTF for all rows of pixels crossing over the razor
+blade edge on the same graph. Any dust, noise, or nicks in the razor blade can cause fuzziness. </p>
+
+<center>Horizontal edge, in slide frame, 0.9mm above glass</center>
+<img src=./horizontal_framed.png>
+
+Looking at the two graphs, the scanner is sharper measuring a vertical edge. This means scans of
+landscape photos will be sharper vertically than horizontally. In practice, I don't notice this in
+actual scans of film, but if you were scanning film shot with an anamorphic lens, it might be a good
+idea to mount them in slide frames and rotate them. I wonder if this is in part due to the sensor
+bar moving and vibration causing blurriness.
+
+	<h3> How does this differ from others results </h3>
+
+<b> Update 12/21: </b> <i> This has been updated with the new data described above </i>
+
+<p> <a href=https://www.filmscanner.info/en/EpsonPerfectionV600Photo.html>ScanDig</a> has also
+performed resolution tests on the V600 (which is nearly identical to the V550). They also found the
+resolution to be different in the vertical and horizontal directions at about 25 lp/mm and 35 lp/mm
+(to convert from their PPI to lp/mm divide by 50.8). Their test methodology is different from mine.
+Instead of measuring the full MTF they determine the resolution they can no longer discern the
+difference between black and white bars in a test target. </p>
+
+<p> Their measurements correspond to an MTF of ~5% on both of my graphs. This seems reasonable as a
+threshold for the smallest discernible contrast. Since they are not measuring a full MTF curve and
+rely on human judgement to determine the resolution, our results are not directly comparable, but
+they are in the same ballpark. </p>
+
+	<h3> How much does height above the glass matter? </h3>
+
+<p> People commonly claim that the V550 film holders do not place the film at the proper height and
+that custom film holders can solve this problem. I put the razor blade in at an angle, resting on
+the edge of the slide holder so the height of the edge varied over distance. This allows me to see
+how the MTF changes with film height. </p>
+
+<center> Slanted test setup </center>
+<img src="./slant_setup.jpg">
+
+<p> Then I graphed the MTF at three spatial resolutions (10, 20 and 30 lp/mm) vs the y coordinate
+the 1d slice of data came from. The noise on the right side of the graph is from where the blade was
+resting on the edge of the slide holder (4.2mm tall). I kept it in because it let me confirm which
+end of the graph was (nearly) against the glass (left) and which was significantly above it (right).
+</p>
+
+<center> MTF at 10, 20, and 30 lp/mm. Left side of graph is on glass </center>
+<img src="./slant.png">
+
+<p> Height above the glass clearly has an effect on MTF, but the best position is about the same as
+the height the razor blade sits at in the slide holder. I don't think there's much to be gained by
+buying custom holders unless your film is curling/bowing up significantly. Then again, this could
+vary unit to unit.</p>
+
+<b> Update 12/21: </b><i>This subsection was added</i>
+<br><br>
+
+<center> MTF at 10, 20, and 30 lp/mm. Right side of graph is on glass </center>
+<img src="./h_slant.png">
+
+<p> Testing with the razorblade running horizontally at a slant produced similar results; the area
+of best focus near but not on the glass. The MTF was lower across the board which also matches the
+MTF curve above where the horizontal edge is not as sharp as the vertical edge.</p>
+
+<h3> Does VueScan help? </h3>
+
+<p> In a word: No. </p>
+
+<p> VueScan offers the option to auto focus while the SANE API (Linux scanning API) does not report
+capability. I wondered if it actually does anything. Initially I was thrown off because VueScan was
+applying curves to the image. When doing MTF tests it's important to not do any <i>nonlinear</i>
+processing on the image which includes applying curves. I didn't realize this at first and the
+curves ended up increasing the MTF a bit. This led me down a wild goose chase with me eventually
+confirming that the autofocus button does not change the commands sent to the scanner in any way.
+I'll write a follow up to this post with the details later. After spending a couple days doing that
+I stumbled on the "save raw" button and confirmed that the raw scans from VueScan are in fact no
+sharper than using the SANE API.
+
+<center> Vertical edge, in slide frame, 0.9mm above glass, scanned with VueScan </center>
+<img src="./vuescan.png">
+
+	<h3> What's next? </h3>
+
+<p> There are several things I still want to investigate: <ul>
+
+<li> Color: Are some color channels sharper than others? Do they have different heights for optimal
+focus due to longitudinal chromatic abberation? </li>
+
+<li> Can I use the PSF to make a deconvolution kernel and get better looking images than the unsharp
+mask filters in most image processing libraries? </li>
+
+<li> How do these results compare to a test with a 1951 USAF resolution test chart (which I would
+need to buy) </li>
+
+</ul>
+
+<hr> <a href=/index.html> Back to index </a> 
+
+</body> </html>
